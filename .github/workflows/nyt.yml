@@ -1,8 +1,9 @@
 name: Fetch NYT sudoku
 on:
   schedule:
-    - cron: "15 14 * * *"   # NYT publishes the next day's puzzles ~14:00 UTC
-    - cron: "0 20 * * *"    # retry later in case the first run was early
+    # NYT posts the next day's puzzles the evening before (~10 PM ET weekdays,
+    # ~6 PM ET weekends, times vary). Poll every 2 hours; commits only on change.
+    - cron: "20 */2 * * *"
   workflow_dispatch:
 permissions:
   contents: write
