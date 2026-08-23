@@ -9,7 +9,7 @@ out, it says so instead of backtracking.
 ## Strategies
 
 Naked/hidden singles → naked/hidden pairs, triples, quads → pointing pairs →
-box-line reduction → X-wing → XY-wing. This covers the full technique range
+box-line reduction → X-wing → swordfish → jellyfish → XY-wing. This covers the full technique range
 of NYT Easy/Medium/Hard. The pipeline restarts from the cheapest strategy
 after every move, so advanced techniques only fire when genuinely needed —
 which makes "hardest technique used" an honest difficulty rating.
