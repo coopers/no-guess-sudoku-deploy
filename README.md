@@ -26,3 +26,11 @@ which makes "hardest technique used" an honest difficulty rating.
 
 Paste an 81-character string (0 or `.` = blank), upload any text file
 containing one, or click cells and type.
+
+## NYT daily puzzles
+
+`scripts/fetch_nyt.py` pulls the day's Easy/Medium/Hard puzzles from the NYT
+sudoku page into `puzzles/nyt.json` (rolling 30-day archive). A GitHub Action
+(`.github/workflows/nyt.yml`) runs it daily and commits the result, so the
+site offers the current puzzles under "NYT daily". Run it locally with
+`python3 scripts/fetch_nyt.py`.
