@@ -13,6 +13,8 @@ Strategies (cheapest first):
   4. Hidden pair / triple / quad
   5. Pointing pair/triple (box -> line)
   6. Box-line reduction (line -> box)
+  7. X-wing / swordfish / jellyfish (basic fish)
+  8. XY-wing
 
 Candidates are 9-bit masks: bit d-1 set  <=>  digit d still possible.
 """
@@ -265,7 +267,22 @@ class Solver:
         return None
 
     def x_wing(self):
-        """Digit's candidates in two lines confined to the same two cross-lines."""
+        return self.basic_fish(2, "X-wing")
+
+    def swordfish(self):
+        return self.basic_fish(3, "swordfish")
+
+    def jellyfish(self):
+        return self.basic_fish(4, "jellyfish")
+
+    def basic_fish(self, size, name):
+        """Digit confined, across `size` base lines, to `size` cross-lines.
+
+        Each base line must place the digit in one of those cross-lines,
+        and no two base lines can share one, so the digit is pinned to the
+        intersections; it can be removed from the rest of the cross-lines.
+        size 2 = X-wing, 3 = swordfish, 4 = jellyfish.
+        """
         for lines, crosses, kind, xkind, li_of, xi_of in (
                 (ROWS, COLS, "row", "column",
                  lambda c: c // 9, lambda c: c % 9),
@@ -273,38 +290,35 @@ class Solver:
                  lambda c: c % 9, lambda c: c // 9)):
             for d in range(1, 10):
                 bit = 1 << (d - 1)
-                two = []  # (line index, frozenset of cross indices)
+                bases = []  # (line index, spots)
                 for li, line in enumerate(lines):
                     spots = [c for c in line if self.cands[c] & bit]
-                    if len(spots) == 2:
-                        two.append((li, frozenset(xi_of(c) for c in spots),
-                                    spots))
-                for i in range(len(two)):
-                    for j in range(i + 1, len(two)):
-                        l1, xs1, sp1 = two[i]
-                        l2, xs2, sp2 = two[j]
-                        if xs1 != xs2:
-                            continue
-                        corners = sp1 + sp2
-                        targets = [c for x in xs1 for c in crosses[x]
-                                   if li_of(c) not in (l1, l2)
-                                   and self.cands[c] & bit]
-                        if not targets:
-                            continue
-                        xa, xb = sorted(xs1)
-                        move = Move(
-                            "X-wing",
-                            f"digit {d} appears exactly twice in {kind}s "
-                            f"{l1+1} and {l2+1}, both times in {xkind}s "
-                            f"{xa+1} and {xb+1} "
-                            f"({', '.join(rc(c) for c in corners)}); the two "
-                            f"placements must take opposite corners of this "
-                            f"rectangle, covering both {xkind}s, so {d} can "
-                            f"be removed from the rest of {xkind}s {xa+1} "
-                            f"and {xb+1}.")
-                        for c in targets:
-                            self.eliminate(c, [d], move)
-                        return move
+                    if 2 <= len(spots) <= size:
+                        bases.append((li, spots))
+                for combo in combinations(bases, size):
+                    xs = sorted({xi_of(c) for _, spots in combo
+                                 for c in spots})
+                    if len(xs) != size:
+                        continue
+                    base_ids = {li for li, _ in combo}
+                    targets = [c for x in xs for c in crosses[x]
+                               if li_of(c) not in base_ids
+                               and self.cands[c] & bit]
+                    if not targets:
+                        continue
+                    cells = [c for _, spots in combo for c in spots]
+                    blist = ", ".join(str(li + 1) for li in sorted(base_ids))
+                    xlist = ", ".join(str(x + 1) for x in xs)
+                    move = Move(
+                        name,
+                        f"digit {d} appears only in {xkind}s {xlist} across "
+                        f"{kind}s {blist} ({', '.join(rc(c) for c in cells)}); "
+                        f"each of those {size} {kind}s must place its {d} in "
+                        f"a different one of those {size} {xkind}s, so {d} "
+                        f"can be removed from the rest of those {xkind}s.")
+                    for c in targets:
+                        self.eliminate(c, [d], move)
+                    return move
         return None
 
     def xy_wing(self):
@@ -356,6 +370,8 @@ class Solver:
         yield self.pointing
         yield self.box_line
         yield self.x_wing
+        yield self.swordfish
+        yield self.jellyfish
         yield self.xy_wing
 
     def solve(self):
