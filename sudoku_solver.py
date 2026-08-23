@@ -17,6 +17,7 @@ Strategies (cheapest first):
 Candidates are 9-bit masks: bit d-1 set  <=>  digit d still possible.
 """
 
+from collections import deque
 from itertools import combinations
 
 # ---------------------------------------------------------------- units
@@ -71,12 +72,18 @@ class Solver:
         self.values = [int(ch) for ch in s]
         self.cands = [0] * 81
         self.log = []
+        # Cells whose candidate mask has narrowed to a single digit.
+        # Seeded here; kept current by place()/eliminate(), so an empty
+        # queue means "no naked single exists anywhere" without a scan.
+        self.single_q = deque()
         for cell in range(81):
             if self.values[cell] == 0:
                 used = {self.values[p] for p in PEERS[cell]} - {0}
                 self.cands[cell] = mask_of(set(range(1, 10)) - used)
                 if self.cands[cell] == 0:
                     raise ValueError(f"contradiction: {rc(cell)} has no candidates")
+                if self.cands[cell] & (self.cands[cell] - 1) == 0:
+                    self.single_q.append(cell)
 
     # ------------------------------------------------------ primitives
 
@@ -92,6 +99,8 @@ class Solver:
                 if self.cands[p] == 0 and self.values[p] == 0:
                     raise ValueError(f"contradiction at {rc(p)} after placing "
                                      f"{digit} in {rc(cell)}")
+                if self.cands[p] & (self.cands[p] - 1) == 0:
+                    self.single_q.append(p)
 
     def eliminate(self, cell, digits, move):
         removed = []
@@ -103,21 +112,29 @@ class Solver:
                 move.eliminations.append((cell, d))
         if self.cands[cell] == 0 and self.values[cell] == 0:
             raise ValueError(f"contradiction: {rc(cell)} emptied")
+        if removed and self.cands[cell] & (self.cands[cell] - 1) == 0:
+            self.single_q.append(cell)
         return removed
 
     # ------------------------------------------------------ strategies
     # Each returns a Move (and applies it) or None. First hit wins.
 
     def naked_single(self):
-        for cell in range(81):
-            if self.values[cell] == 0 and bin(self.cands[cell]).count("1") == 1:
-                d = digits_of(self.cands[cell])[0]
-                move = Move("naked single",
-                            f"{rc(cell)} has only one remaining candidate, {d}: "
-                            f"every other digit already appears in its row, "
-                            f"column, or box.")
-                self.place(cell, d, move)
-                return move
+        # Event-driven: place()/eliminate() enqueue any cell whose mask
+        # narrows to one candidate, so no board scan is needed and an
+        # empty queue proves there are no naked singles left. Entries can
+        # go stale (the cell got filled after being enqueued), so re-check.
+        while self.single_q:
+            cell = self.single_q.popleft()
+            if self.values[cell] != 0 or bin(self.cands[cell]).count("1") != 1:
+                continue
+            d = digits_of(self.cands[cell])[0]
+            move = Move("naked single",
+                        f"{rc(cell)} has only one remaining candidate, {d}: "
+                        f"every other digit already appears in its row, "
+                        f"column, or box.")
+            self.place(cell, d, move)
+            return move
         return None
 
     def hidden_single(self):
