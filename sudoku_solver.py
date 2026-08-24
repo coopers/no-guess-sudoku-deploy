@@ -95,6 +95,7 @@ class Solver:
         self.cands[cell] = 0
         move.placements.append((cell, digit))
         bit = 1 << (digit - 1)
+        new_singles = set()
         for p in PEERS[cell]:
             if self.cands[p] & bit:
                 self.cands[p] &= ~bit
@@ -102,7 +103,19 @@ class Solver:
                     raise ValueError(f"contradiction at {rc(p)} after placing "
                                      f"{digit} in {rc(cell)}")
                 if self.cands[p] & (self.cands[p] - 1) == 0:
-                    self.single_q.append(p)
+                    new_singles.add(p)
+        # Enqueue the newly created singles in a fixed, human order:
+        # the placed cell's row (left to right), then its column, then
+        # its box. The queue is FIFO, so singles are then resolved in
+        # the order they were discovered.
+        if new_singles:
+            row, col = cell // 9, cell % 9
+            box = (row // 3) * 3 + col // 3
+            for unit in (ROWS[row], COLS[col], BOXES[box]):
+                for c in unit:
+                    if c in new_singles:
+                        new_singles.discard(c)
+                        self.single_q.append(c)
 
     def eliminate(self, cell, digits, move):
         removed = []
@@ -123,9 +136,11 @@ class Solver:
 
     def naked_single(self):
         # Event-driven: place()/eliminate() enqueue any cell whose mask
-        # narrows to one candidate, so no board scan is needed and an
-        # empty queue proves there are no naked singles left. Entries can
-        # go stale (the cell got filled after being enqueued), so re-check.
+        # narrows to one candidate (in row -> column -> box order of the
+        # triggering cell), so no board scan is needed and an empty queue
+        # proves there are no naked singles left. FIFO: singles are
+        # resolved in discovery order. Entries can go stale (the cell got
+        # filled after being enqueued), so re-check before placing.
         while self.single_q:
             cell = self.single_q.popleft()
             if self.values[cell] != 0 or bin(self.cands[cell]).count("1") != 1:
